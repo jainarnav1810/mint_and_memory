@@ -20,7 +20,7 @@ import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
 
-type Category = 'All pieces' | 'Stamps' | 'Coins' | 'Currency';
+type Category = 'All pieces' | 'Stamps' | 'Currency';
 type Lot = {
   id: string;
   title: string;
@@ -48,18 +48,6 @@ const lots: Lot[] = [
     image: '/archive-desk.jpg',
     art: 'stamp-art',
     note: 'A small blue stamp with the weather of a port city still in its paper.',
-  },
-  {
-    id: 'vienna-crown',
-    title: 'Vienna 10 Kronen',
-    place: 'Austria · Central Europe',
-    era: '1924 · Silver',
-    category: 'Coins',
-    type: 'Fixed price',
-    price: '$126',
-    image: '/silver-coin.jpg',
-    art: 'coin-art',
-    note: 'The final issue before a currency disappeared into a new republic.',
   },
   {
     id: 'tanganyika-note',
@@ -90,8 +78,7 @@ const lots: Lot[] = [
 
 const categories: { name: Category; count: string; mark: string }[] = [
   { name: 'Stamps', count: '1,284 pieces', mark: '01' },
-  { name: 'Coins', count: '762 pieces', mark: '02' },
-  { name: 'Currency', count: '418 pieces', mark: '03' },
+  { name: 'Currency', count: '418 pieces', mark: '02' },
 ];
 
 function Home() {
@@ -202,7 +189,7 @@ function Home() {
               <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Try a place, year, or denomination" className="w-full bg-transparent font-display text-2xl outline-none placeholder:text-[#456062]/40 sm:text-3xl" data-testid="input-search" />
             </div>
             <div className="mt-7 flex flex-wrap gap-2">
-              {['Ceylon', '1924', 'silver', 'Japan'].map((term) => (
+              {['Ceylon', '1961', 'shilling', 'Japan'].map((term) => (
                 <button key={term} onClick={() => { setSearch(term); setSearchOpen(false); scrollTo('browse'); }} className="border rule px-3 py-2 font-mono-archive text-[10px] uppercase tracking-[.12em] hover:bg-[#e5decc]" data-testid={`button-search-suggestion-${term}`}>{term}</button>
               ))}
             </div>
@@ -225,7 +212,7 @@ function Home() {
                 Objects that<br /><em>remember</em> for us.
               </h1>
               <p className="reveal delay-2 mt-9 max-w-[450px] text-[15px] leading-7 text-[#456062] sm:text-[17px]">
-                Stamps, coins, and currency collected from the long way around. Browse the pieces, then stay for the story behind them.
+                 Stamps and currency collected from the long way around. Browse the pieces, then stay for the story behind them.
               </p>
               <div className="reveal delay-3 mt-9 flex flex-wrap items-center gap-4">
                 <button onClick={() => scrollTo('browse')} className="button-press group flex items-center gap-4 bg-[#163b3d] px-5 py-4 font-mono-archive text-[10px] uppercase tracking-[.13em] text-[#f5f0e3] hover:bg-[#b86955]" data-testid="button-browse-pieces">
@@ -266,12 +253,12 @@ function Home() {
         <section className="mx-auto max-w-[1360px] px-5 py-24 sm:px-8 lg:px-12 lg:py-32" id="browse">
           <div className="grid gap-10 lg:grid-cols-[.72fr_1.28fr] lg:gap-20">
             <div>
-              <span className="eyebrow text-[#b86955]">The collection / 03 doors in</span>
+              <span className="eyebrow text-[#b86955]">The collection / 02 doors in</span>
               <h2 className="mt-5 max-w-[370px] font-display text-5xl leading-[.95] tracking-[-.05em] sm:text-6xl">Start where your curiosity pulls.</h2>
               <p className="mt-6 max-w-[320px] text-sm leading-6 text-[#456062]">Not everything here is valuable. That is the point. Every piece is chosen for the trace it leaves behind.</p>
               <button onClick={() => { setActiveCategory('All pieces'); scrollTo('pieces'); }} className="mt-8 flex items-center gap-3 font-mono-archive text-[10px] uppercase tracking-[.13em] text-[#b86955]" data-testid="button-view-all-pieces">View all pieces <ArrowUpRight size={15} /></button>
             </div>
-            <div className="grid border-t rule sm:grid-cols-3">
+              <div className="grid border-t rule sm:grid-cols-2">
               {categories.map((category) => (
                 <button key={category.name} onClick={() => { setActiveCategory(category.name); scrollTo('pieces'); }} className="group relative border-b rule py-7 text-left transition hover:bg-[#e5decc] sm:border-b-0 sm:border-r sm:px-6 first:sm:pl-0 last:border-r-0" data-testid={`button-category-${category.name.toLowerCase()}`}>
                   <div className="flex items-start justify-between">
@@ -294,7 +281,7 @@ function Home() {
                 <h2 className="mt-4 font-display text-5xl tracking-[-.05em] sm:text-6xl">Pieces with a pulse.</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {(['All pieces', 'Stamps', 'Coins', 'Currency'] as Category[]).map((category) => (
+                {(['All pieces', 'Stamps', 'Currency'] as Category[]).map((category) => (
                   <button key={category} onClick={() => setActiveCategory(category)} className={`border px-3 py-2 font-mono-archive text-[10px] uppercase tracking-[.1em] transition ${activeCategory === category ? 'border-[#163b3d] bg-[#163b3d] text-[#f5f0e3]' : 'border-[#163b3d]/20 text-[#456062] hover:border-[#163b3d]'}`} data-testid={`button-filter-${category.toLowerCase().replace(' ', '-')}`}>{category}</button>
                 ))}
               </div>
@@ -330,7 +317,7 @@ function Home() {
             <div>
               <span className="eyebrow text-[#b86955]">Why this little marketplace exists</span>
               <h2 className="mt-5 max-w-[610px] font-display text-5xl leading-[.95] tracking-[-.05em] sm:text-7xl">The object is only half the story.</h2>
-              <p className="mt-8 max-w-[520px] text-[15px] leading-7 text-[#456062]">A stamp can be a goodbye. A coin can be the last thing a traveler has left from a city. A note can hold a fingerprint, a train route, a season.</p>
+               <p className="mt-8 max-w-[520px] text-[15px] leading-7 text-[#456062]">A stamp can be a goodbye. A banknote can be the last thing a traveler has left from a city. It can hold a fingerprint, a train route, a season.</p>
               <p className="mt-5 max-w-[520px] text-[15px] leading-7 text-[#456062]">Mint & Memory is a considered exchange for those things — with clear condition, honest provenance, and enough room to wonder.</p>
               <div className="mt-10 grid max-w-[520px] grid-cols-3 border-t rule pt-5">
                 <div><p className="font-display text-3xl">14</p><p className="mt-1 font-mono-archive text-[9px] uppercase tracking-[.1em] text-[#456062]">countries</p></div>
@@ -437,7 +424,6 @@ function LotCard({ lot, index, saved, onSave, onOpen }: { lot: Lot; index: numbe
       <div className="relative aspect-[.88] overflow-hidden bg-[#d2c6a9]">
         <img src={lot.image} alt={`${lot.title} archival photograph`} className="absolute inset-0 h-full w-full object-cover opacity-30 mix-blend-multiply transition duration-500 group-hover:scale-105" />
         <div className={`absolute inset-[13%] overflow-hidden ${lot.art} shadow-lg`}>
-          {lot.category === 'Coins' && <div className="coin-art absolute left-1/2 top-1/2 h-[68%] w-[68%] -translate-x-1/2 -translate-y-1/2 rounded-full" />}
           {lot.category === 'Stamps' && <div className="absolute inset-5 border border-[#f5e9c4]/70"><span className="absolute bottom-3 left-3 font-display text-4xl italic text-[#f5e9c4]">{index === 0 ? '15' : '24'}</span><span className="absolute right-3 top-3 font-mono-archive text-[8px] text-[#f5e9c4]">POST</span></div>}
           {lot.category === 'Currency' && <div className="absolute inset-5 border border-[#d6d4a5]/70"><span className="absolute bottom-3 left-3 font-display text-4xl italic text-[#f4e8b1]">5</span><span className="absolute right-3 top-3 font-mono-archive text-[8px] text-[#d6d4a5]">SHILLINGS</span></div>}
         </div>
@@ -459,7 +445,7 @@ function LotDialog({ lot, bid, setBid, onClose, onBid, onReserve }: { lot: Lot; 
       <div className="relative max-h-[90vh] w-full max-w-3xl overflow-auto bg-[#f5f0e3] shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <button onClick={onClose} className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center border border-[#163b3d]/20 bg-[#f5f0e3]" data-testid="button-close-lot-dialog" aria-label="Close item details"><X size={17} /></button>
         <div className="grid md:grid-cols-[.9fr_1.1fr]">
-          <div className="relative min-h-[300px] bg-[#d2c6a9] md:min-h-[460px]"><img src={lot.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25 mix-blend-multiply" /><div className={`absolute inset-[13%] ${lot.art}`}>{lot.category === 'Coins' && <div className="coin-art absolute left-1/2 top-1/2 h-[65%] w-[65%] -translate-x-1/2 -translate-y-1/2 rounded-full" />}<div className="absolute inset-5 border border-[#f5e9c4]/60" /></div><span className="absolute bottom-5 left-5 font-mono-archive text-[9px] uppercase tracking-[.15em] text-[#163b3d]">Archive no. {lot.id.slice(0, 6).toUpperCase()}</span></div>
+          <div className="relative min-h-[300px] bg-[#d2c6a9] md:min-h-[460px]"><img src={lot.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25 mix-blend-multiply" /><div className={`absolute inset-[13%] ${lot.art}`}><div className="absolute inset-5 border border-[#f5e9c4]/60" /></div><span className="absolute bottom-5 left-5 font-mono-archive text-[9px] uppercase tracking-[.15em] text-[#163b3d]">Archive no. {lot.id.slice(0, 6).toUpperCase()}</span></div>
           <div className="p-7 sm:p-10"><span className="eyebrow text-[#b86955]">{lot.type} · {lot.era}</span><h2 className="mt-4 font-display text-4xl leading-[.95] tracking-[-.05em] sm:text-5xl">{lot.title}</h2><p className="mt-3 font-mono-archive text-[10px] uppercase tracking-[.12em] text-[#456062]">{lot.place}</p><p className="mt-8 text-sm leading-7 text-[#456062]">{lot.note}</p><div className="mt-8 grid grid-cols-2 border-t rule pt-4"><div><span className="eyebrow text-[#456062]">Condition</span><p className="mt-2 text-sm">Very good · gentle patina</p></div><div><span className="eyebrow text-[#456062]">Provenance</span><p className="mt-2 text-sm">Personal collection</p></div></div>{lot.type === 'Auction' ? <div className="mt-8 border-t rule pt-5"><div className="flex items-end justify-between"><span className="eyebrow text-[#b86955]">Current bid</span><span className="font-display text-3xl">{lot.price}</span></div><div className="mt-4 flex border-b border-[#163b3d] pb-2"><span className="font-display text-xl">$</span><input value={bid} onChange={(event) => setBid(event.target.value)} inputMode="decimal" placeholder="Your maximum bid" className="ml-2 w-full bg-transparent font-display text-xl outline-none placeholder:text-[#456062]/50" data-testid="input-bid" /></div><button onClick={onBid} disabled={!bid} className="button-press mt-5 flex w-full items-center justify-center gap-2 bg-[#163b3d] px-4 py-4 font-mono-archive text-[10px] uppercase tracking-[.13em] text-[#f5f0e3] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#b86955]" data-testid="button-submit-bid">Place a considered bid <ArrowUpRight size={15} /></button><p className="mt-3 text-center font-mono-archive text-[9px] uppercase tracking-[.1em] text-[#456062]">Auction closes in {lot.timing}</p></div> : <div className="mt-8 border-t rule pt-5"><div className="flex items-end justify-between"><span className="eyebrow text-[#b86955]">Fixed price</span><span className="font-display text-3xl">{lot.price}</span></div><button onClick={onReserve} className="button-press mt-5 flex w-full items-center justify-center gap-2 bg-[#163b3d] px-4 py-4 font-mono-archive text-[10px] uppercase tracking-[.13em] text-[#f5f0e3] hover:bg-[#b86955]" data-testid="button-reserve-lot">Hold this piece <ArrowUpRight size={15} /></button><p className="mt-3 text-center font-mono-archive text-[9px] uppercase tracking-[.1em] text-[#456062]">Single-item checkout · Ships worldwide</p></div>}</div>
         </div>
       </div>
