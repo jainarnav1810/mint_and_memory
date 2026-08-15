@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Mint & Memory"
+description = "A premium, story-led marketplace for discovering rare stamps, coins, and currency from around the world. Each collectible is presented as a tactile piece of history with provenance, era, and collector context."
+version = "1.0.0"
+id = "artifacts/mint-and-memory"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25370
+
+[services.development]
+run = "pnpm --filter @workspace/mint-and-memory run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mint-and-memory", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/mint-and-memory/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25370"
+BASE_PATH = "/"

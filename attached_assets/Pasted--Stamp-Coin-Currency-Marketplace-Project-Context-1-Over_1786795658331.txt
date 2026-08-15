@@ -1,0 +1,235 @@
+# Stamp, Coin & Currency Marketplace — Project Context
+ 
+## 1. Overview
+ 
+A global online marketplace for selling a personal stamp, coin, and currency collection. The platform supports two distinct sale mechanisms on the same catalog:
+ 
+- **Rare items → Auction** (bidding, time-limited, highest bid wins)
+- **Normal items → Fixed-price sale** (standard buy-now checkout)
+ 
+## 2. Goals & Requirements
+ 
+- List the full collection (stamps, coins, currency) with rich item detail and multiple images per item
+- Support two listing types on one catalog: auction and fixed-price
+- Global reach from day one — not limited to India, since the domestic collector market is small; items include stamps/coins from many countries
+- Filtering by country, price, category, and other attributes
+- Scalable backend that can grow beyond MVP without a rewrite
+- Integrated payments and auction settlement logic
+- **MVP constraint: use free tiers wherever possible** — validate before spending
+ 
+## 3. Core Modules
+ 
+1. **Catalog & listings** — item metadata: country, era, denomination, condition, category, images, listing type
+2. **Fixed-price sales** — cart-free single-item checkout via Stripe
+3. **Auction engine** — bidding, timers, reserve price, auto-close via scheduled job
+4. **Payments & settlement** — Stripe for both flows; auctions charge only after close
+ 
+## 4. Tech Stack (MVP, free-tier-first)
+ 
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | Next.js (App Router) on Vercel | Free hosting, good SEO for global discovery, includes cron |
+| Backend | Next.js API routes | No separate backend service to host/pay for at MVP stage |
+| Database | Supabase (Postgres) | Free tier, bundles auth + storage |
+| Auth | Supabase Auth | Avoids building custom auth |
+| Image storage | Supabase Storage | Bundled with DB, public bucket + RLS policies |
+| Search/filtering | Postgres indexed columns (MVP) → Algolia/Elasticsearch later | Postgres is enough at MVP scale (hundreds–low thousands of listings) |
+| Payments | Stripe | No monthly fee, pay-per-transaction only, production-ready from day one |
+| Auction close job | Vercel Cron → hits `/api/cron/close-auctions` | Free, no dedicated job queue/Redis needed at MVP scale |
+ 
+**Explicitly cut from MVP scope:** microservices, Kubernetes, dedicated search infra, KYC/ID verification, multi-seller support (Stripe Connect), auto-extend anti-sniping. Add these only once real usage justifies them.
+ 
+## 5. File Structure
+ 
+```
+stamp-marketplace/
+├── app/
+│   ├── (public)/
+│   │   ├── page.tsx                 # homepage
+│   │   ├── browse/page.tsx          # catalog with filters
+│   │   ├── item/[id]/page.tsx       # item / auction detail
+│   │   ├── cart/page.tsx
+│   │   └── checkout/page.tsx
+│   ├── (auth)/
+│   │   ├── login/page.tsx
+│   │   └── signup/page.tsx
+│   ├── (admin)/
+│   │   ├── dashboard/page.tsx
+│   │   ├── listings/page.tsx
+│   │   ├── listings/new/page.tsx
+│   │   └── orders/page.tsx
+│   ├── api/
+│   │   ├── listings/route.ts
+│   │   ├── listings/[id]/route.ts
+│   │   ├── bids/route.ts
+│   │   ├── checkout/route.ts
+│   │   ├── auctions/close/route.ts
+│   │   ├── auctions/[id]/route.ts
+│   │   ├── webhooks/stripe/route.ts
+│   │   └── cron/close-auctions/route.ts
+│   └── layout.tsx
+├── components/
+│   ├── ui/
+│   ├── listing-card.tsx
+│   ├── filter-sidebar.tsx
+│   ├── bid-form.tsx
+│   ├── auction-timer.tsx
+│   └── navbar.tsx
+├── lib/
+│   ├── supabase/{client,server,admin}.ts
+│   ├── stripe.ts
+│   ├── auction-logic.ts
+│   └── validators.ts
+├── types/
+│   ├── listing.ts
+│   ├── bid.ts
+│   └── order.ts
+├── supabase/
+│   ├── migrations/
+│   └── seed.sql
+├── public/images/
+├── .env.local
+├── vercel.json
+├── next.config.js
+└── package.json
+```
+ 
+## 6. Database Schema
+ 
+```sql
+-- Extends Supabase auth.users with profile info
+create table profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  full_name text,
+  role text not null default 'buyer' check (role in ('buyer', 'admin')),
+  country text,
+  created_at timestamptz default now()
+);
+ 
+-- Core item table
+create table listings (
+  id uuid primary key default gen_random_uuid(),
+  seller_id uuid references profiles(id) default auth.uid(),
+  title text not null,
+  description text,
+  category text not null check (category in ('stamp', 'coin', 'currency')),
+  country_of_origin text not null,
+  year_issued int,
+  condition text,
+  denomination text,
+  listing_type text not null check (listing_type in ('fixed', 'auction')),
+  fixed_price numeric(10,2),
+  starting_bid numeric(10,2),
+  reserve_price numeric(10,2),
+  current_highest_bid numeric(10,2),
+  currency text not null default 'USD',
+  auction_start timestamptz,
+  auction_end timestamptz,
+  status text not null default 'active'
+    check (status in ('active', 'sold', 'closed', 'draft', 'cancelled')),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+ 
+create index idx_listings_country on listings(country_of_origin);
+create index idx_listings_category on listings(category);
+create index idx_listings_type_status on listings(listing_type, status);
+create index idx_listings_price on listings(fixed_price);
+ 
+-- Multiple images per item
+create table listing_images (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references listings(id) on delete cascade,
+  storage_path text not null,
+  display_order int default 0,
+  is_primary boolean default false,
+  created_at timestamptz default now()
+);
+ 
+create index idx_listing_images_listing on listing_images(listing_id);
+ 
+-- Auction bids
+create table bids (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references listings(id) on delete cascade,
+  bidder_id uuid not null references profiles(id),
+  amount numeric(10,2) not null,
+  created_at timestamptz default now()
+);
+ 
+create index idx_bids_listing on bids(listing_id, amount desc);
+ 
+-- Orders (fixed-price purchases + won auctions)
+create table orders (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references listings(id),
+  buyer_id uuid not null references profiles(id),
+  order_type text not null check (order_type in ('fixed', 'auction')),
+  amount numeric(10,2) not null,
+  currency text not null default 'USD',
+  stripe_payment_intent_id text,
+  payment_status text not null default 'pending'
+    check (payment_status in ('pending', 'paid', 'failed', 'refunded')),
+  shipping_address jsonb,
+  order_status text not null default 'processing'
+    check (order_status in ('processing', 'shipped', 'delivered', 'cancelled')),
+  created_at timestamptz default now()
+);
+ 
+create index idx_orders_buyer on orders(buyer_id);
+create index idx_orders_listing on orders(listing_id);
+```
+ 
+**Design notes:**
+- `current_highest_bid` is denormalized onto `listings` so browse/filter pages can sort/display price without joining `bids` on every row; updated whenever a new bid lands.
+- `country_of_origin`, `category`, and price fields are indexed since they're the primary filter fields.
+- One `orders` row per item (no separate `order_items` table) since collectibles are typically bought individually — simpler for MVP, extendable later.
+ 
+## 7. Image Handling
+ 
+**Storage:** Supabase Storage, bucket `listing-images`, public read / admin-only write via RLS.
+ 
+**Upload flow:**
+```
+Admin uploads image → Supabase Storage bucket
+                    → returns storage path (e.g. listings/{listing_id}/front.jpg)
+                    → path saved in listing_images.storage_path
+                    → public URL constructed as:
+                      https://<project>.supabase.co/storage/v1/object/public/listing-images/{path}
+```
+ 
+**Naming pattern per item** (supports multiple angles, useful for collectible detail):
+```
+listings/{listing_id}/
+  ├── front.jpg
+  ├── back.jpg
+  └── detail-1.jpg
+```
+ 
+**Optimization:** compress/resize client-side before upload (e.g. `browser-image-compression`) to stay well within free-tier storage/bandwidth; serve via Next.js `<Image>` pointed at the Supabase domain (added to `next.config.js` → `images.remotePatterns`).
+ 
+**RLS policies:**
+```sql
+create policy "Public read access"
+on storage.objects for select
+using (bucket_id = 'listing-images');
+ 
+create policy "Admin upload access"
+on storage.objects for insert
+with check (
+  bucket_id = 'listing-images'
+  and exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+);
+```
+ 
+Free tier: 1GB storage / 2GB bandwidth per month on Supabase — several thousand compressed stamp/coin photos before needing to upgrade.
+ 
+## 8. Open / Next Steps
+ 
+- Upload component + API route code for images
+- Filter query logic (browse page tying `listings` + `listing_images` + facets together)
+- Stripe checkout session creation (fixed-price flow)
+- Bid placement + auction close cron job logic
+- Admin dashboard for listing management
+ 
