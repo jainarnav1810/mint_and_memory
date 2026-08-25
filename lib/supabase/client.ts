@@ -1,6 +1,22 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://apekkgqzdyxxgmxwpngp.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwZWtrZ3F6ZHl4eGdteHdwbmdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MDM2NDAsImV4cCI6MjEwMjM3OTY0MH0.64P9alni3joPKWuRq6ji064UCbTDo2ZZSQ82p3pE6KE';
+/**
+ * Browser-side Supabase client. Reads/writes the same auth cookie the server
+ * client uses, so a session established here is visible to server components
+ * and route handlers.
+ *
+ * Only the anon key is used here — it ships to the browser by design and is
+ * safe *provided* row-level security is enabled on every table.
+ */
+export function createClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  if (!url || !anonKey) {
+    throw new Error(
+      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Copy .env.example to .env.local and fill them in.',
+    );
+  }
+
+  return createBrowserClient(url, anonKey);
+}

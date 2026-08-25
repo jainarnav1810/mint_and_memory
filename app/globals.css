@@ -1,0 +1,96 @@
+/*
+ * Mint & Memory — "Specimen Drawer Archive" theme.
+ * Ported from the original Vite artifact (artifacts/mint-and-memory/src/index.css).
+ *
+ * Fonts (Source Serif 4 + IBM Plex Mono) are loaded via <link> tags in app/layout.tsx
+ * so Next.js can preconnect to the font host.
+ *
+ * `source(none)` disables Tailwind's automatic content detection so it does not crawl the
+ * legacy artifacts/ tree; the sources we actually compile are listed explicitly below.
+ */
+@import 'tailwindcss' source(none);
+
+@source "../app";
+@source "../components";
+
+:root {
+  --color-card-stock: #f5f0e6;
+  --color-drawer-wood: #a08d6f;
+  --color-pastel-moss: #d8dcc8;
+  --color-pale-bone: #ede0d4;
+  --color-specimen-ink: #3f3a32;
+  --color-brass-pull: #c7b79c;
+  --color-brass-dark: #8c7a5c;
+  --color-brass-shine: #e6d8ba;
+
+  font-family: 'Source Serif 4', Georgia, serif;
+  background-color: var(--color-card-stock);
+  color: var(--color-specimen-ink);
+}
+
+.font-serif-museum {
+  font-family: 'Source Serif 4', Georgia, serif;
+}
+
+.font-mono-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.08em;
+}
+
+/* Custom Specimen Drawer Texture & Box Shadows */
+.shadow-drawer-tray {
+  box-shadow:
+    inset 0 3px 6px rgba(63, 58, 50, 0.15),
+    0 8px 24px rgba(63, 58, 50, 0.08);
+}
+
+.shadow-brass-hardware {
+  box-shadow:
+    0 2px 4px rgba(63, 58, 50, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.bg-card-stock {
+  background-color: #f5f0e6;
+}
+
+.bg-drawer-wood {
+  background-color: #a08d6f;
+}
+
+.border-drawer-wood {
+  border-color: #a08d6f;
+}
+
+.text-specimen-ink {
+  color: #3f3a32;
+}
+
+.bg-pastel-moss {
+  background-color: #d8dcc8;
+}
+
+.bg-pale-bone {
+  background-color: #ede0d4;
+}
+
+.text-brass-pull {
+  color: #c7b79c;
+}
+
+.border-brass-pull {
+  border-color: #c7b79c;
+}
+
+/* Paper grain subtle background pattern */
+.bg-paper-texture {
+  background-color: #f5f0e6;
+  background-image:
+    radial-gradient(#a08d6f 0.4px, transparent 0.4px),
+    radial-gradient(#a08d6f 0.4px, #f5f0e6 0.4px);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    8px 8px;
+}

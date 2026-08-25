@@ -62,7 +62,32 @@ export async function createRazorpayOrder(params: CreateRazorpayOrderParams) {
 }
 
 /**
- * Verifies Razorpay payment signature from client callback.
+ * Constant-time compare, so a failed verification can't be narrowed down by
+ * timing how long the mismatch took to detect.
+ */
+function safeEqualHex(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'hex');
+  const bufB = Buffer.from(b, 'hex');
+  if (bufA.length === 0 || bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * When a signing secret is absent we're in local mock mode and accept the
+ * payload. In production that would let anyone forge a "payment succeeded"
+ * call, so a missing secret must fail closed instead.
+ */
+function allowUnsignedInDev(what: string): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    console.error(`[razorpay] refusing to verify ${what}: signing secret is not configured`);
+    return false;
+  }
+  console.warn(`[razorpay] ${what} accepted unverified — signing secret not set (development only)`);
+  return true;
+}
+
+/**
+ * Verifies the Razorpay payment signature returned to the browser callback.
  */
 export function verifyRazorpaySignature(
   orderId: string,
@@ -70,28 +95,28 @@ export function verifyRazorpaySignature(
   signature: string
 ): boolean {
   const secret = process.env.RAZORPAY_KEY_SECRET;
-  if (!secret) return true; // Mock mode returns true
+  if (!secret) return allowUnsignedInDev('payment signature');
+  if (!signature) return false;
 
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(`${orderId}|${paymentId}`);
-  const generatedSignature = hmac.digest('hex');
 
-  return generatedSignature === signature;
+  return safeEqualHex(hmac.digest('hex'), signature);
 }
 
 /**
- * Verifies Razorpay webhook signature.
+ * Verifies the `X-Razorpay-Signature` header on an incoming webhook.
  */
 export function verifyRazorpayWebhook(
   rawBody: string,
   signature: string
 ): boolean {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  if (!webhookSecret) return true;
+  if (!webhookSecret) return allowUnsignedInDev('webhook');
+  if (!signature) return false;
 
   const hmac = crypto.createHmac('sha256', webhookSecret);
   hmac.update(rawBody);
-  const generatedSignature = hmac.digest('hex');
 
-  return generatedSignature === signature;
+  return safeEqualHex(hmac.digest('hex'), signature);
 }

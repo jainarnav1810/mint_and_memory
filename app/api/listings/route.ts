@@ -1,141 +1,121 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
-import { Listing } from '@/types/listing';
+import { NextResponse, type NextRequest } from 'next/server';
 
-// Initial sample mock listings for fallback when DB is offline
-const MOCK_LISTINGS: Listing[] = [
-  {
-    id: 'ceylon-king-george',
-    title: 'Ceylon, King George V 15-Cents Stamp',
-    description: 'A rare 1921 King George V stamp from Ceylon with distinct deep blue ink on watermarked paper.',
-    category: 'stamp',
-    country_of_origin: 'Ceylon',
-    year_issued: 1921,
-    condition: 'Extremely Fine',
-    denomination: '15 Cents',
-    listing_type: 'auction',
-    starting_bid: 75.0,
-    current_highest_bid: 95.0,
-    reserve_price: 120.0,
-    currency: 'USD',
-    auction_start: new Date(Date.now() - 86400000 * 2).toISOString(),
-    auction_end: new Date(Date.now() + 86400000 * 3).toISOString(),
-    status: 'active',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    images: [{ id: '1', listing_id: 'ceylon-king-george', storage_path: '/archive-desk.jpg', display_order: 0, is_primary: true }],
-  },
-  {
-    id: 'tanganyika-note',
-    title: 'Tanganyika 5 Shillings Banknote',
-    description: 'Issued in 1961 by East African Currency Board in Dar es Salaam during independence transition.',
-    category: 'currency',
-    country_of_origin: 'Tanganyika',
-    year_issued: 1961,
-    condition: 'Uncirculated',
-    denomination: '5 Shillings',
-    listing_type: 'auction',
-    starting_bid: 45.0,
-    current_highest_bid: 58.0,
-    reserve_price: 60.0,
-    currency: 'USD',
-    auction_start: new Date(Date.now() - 86400000).toISOString(),
-    auction_end: new Date(Date.now() + 3600000 * 8).toISOString(),
-    status: 'active',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    images: [{ id: '2', listing_id: 'tanganyika-note', storage_path: '/world-archive.jpg', display_order: 0, is_primary: true }],
-  },
-  {
-    id: 'japan-fuji',
-    title: 'Japan, Mount Fuji 24 Yen Airmail Stamp',
-    description: 'Postwar airmail issue depicting Mount Fuji over Tokyo bay, unhinged mint condition.',
-    category: 'stamp',
-    country_of_origin: 'Japan',
-    year_issued: 1952,
-    condition: 'Mint',
-    denomination: '24 Yen',
-    listing_type: 'fixed',
-    fixed_price: 42.0,
-    currency: 'USD',
-    status: 'active',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    images: [{ id: '3', listing_id: 'japan-fuji', storage_path: '/archive-desk.jpg', display_order: 0, is_primary: true }],
-  },
-  {
-    id: 'uk-sovereign-1889',
-    title: 'British Gold Sovereign Coin 1889',
-    description: 'Queen Victoria Jubilee Head mint edition 22k gold sovereign coin.',
-    category: 'coin',
-    country_of_origin: 'United Kingdom',
-    year_issued: 1889,
-    condition: 'Proof',
-    denomination: '1 Sovereign',
-    listing_type: 'auction',
-    starting_bid: 520.0,
-    current_highest_bid: 580.0,
-    reserve_price: 650.0,
-    currency: 'USD',
-    auction_start: new Date(Date.now() - 86400000 * 3).toISOString(),
-    auction_end: new Date(Date.now() + 86400000 * 1).toISOString(),
-    status: 'active',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    images: [{ id: '4', listing_id: 'uk-sovereign-1889', storage_path: '/world-archive.jpg', display_order: 0, is_primary: true }],
-  },
-];
+import { createClient, getSessionContext } from '@/lib/supabase/server';
+import { firstIssue, newListingSchema } from '@/lib/validators';
+import type { CollectibleCategory, ListingType } from '@/types/listing';
 
+const CATEGORIES = ['stamp', 'coin', 'currency'];
+const TYPES = ['auction', 'fixed'];
+
+/** Public catalog read. Filters mirror the browse page's query string. */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get('category');
+  const listingType = searchParams.get('type');
   const country = searchParams.get('country');
-  const type = searchParams.get('type');
-  const search = searchParams.get('search')?.toLowerCase().trim();
+  const limitParam = Number(searchParams.get('limit'));
 
-  try {
-    let query = supabase.from('listings').select('*, images:listing_images(*)');
+  const supabase = await createClient();
 
-    if (category && category !== 'all') {
-      query = query.eq('category', category);
-    }
-    if (country) {
-      query = query.ilike('country_of_origin', `%${country}%`);
-    }
-    if (type && type !== 'all') {
-      query = query.eq('listing_type', type);
-    }
+  let query = supabase
+    .from('listings')
+    .select('*, images:listing_images(*)')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
 
-    const { data, error } = await query;
-
-    if (error || !data || data.length === 0) {
-      // Filter mock data when Supabase connection is not present
-      let results = [...MOCK_LISTINGS];
-      if (category && category !== 'all') results = results.filter((item) => item.category === category);
-      if (type && type !== 'all') results = results.filter((item) => item.listing_type === type);
-      if (country) results = results.filter((item) => item.country_of_origin.toLowerCase().includes(country.toLowerCase()));
-      if (search) results = results.filter((item) => `${item.title} ${item.country_of_origin} ${item.description}`.toLowerCase().includes(search));
-
-      return NextResponse.json({ listings: results, isMock: true });
-    }
-
-    return NextResponse.json({ listings: data, isMock: false });
-  } catch (err) {
-    return NextResponse.json({ listings: MOCK_LISTINGS, isMock: true });
+  if (category && CATEGORIES.includes(category)) {
+    query = query.eq('category', category as CollectibleCategory);
   }
+  if (listingType && TYPES.includes(listingType)) {
+    query = query.eq('listing_type', listingType as ListingType);
+  }
+  if (country) {
+    query = query.ilike('country_of_origin', `%${country}%`);
+  }
+  query = query.limit(Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 60);
+
+  const { data, error } = await query;
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ listings: data ?? [] });
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { data, error } = await supabase.from('listings').insert([body]).select().single();
+  const { user, isAdmin } = await getSessionContext();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ listing: data }, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  if (!user) {
+    return NextResponse.json({ error: 'Sign in to catalog a specimen' }, { status: 401 });
   }
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Curator access required' }, { status: 403 });
+  }
+
+  const json = await request.json().catch(() => null);
+  const parsed = newListingSchema.safeParse(json);
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: firstIssue(parsed.error) }, { status: 400 });
+  }
+
+  const { images = [], auction_duration_days, ...fields } = parsed.data;
+  const supabase = await createClient();
+
+  const isAuction = fields.listing_type === 'auction';
+  const now = new Date();
+  const auctionEnd = isAuction
+    ? new Date(now.getTime() + (auction_duration_days ?? 7) * 24 * 60 * 60 * 1000)
+    : null;
+
+  const { data: listing, error: insertErr } = await supabase
+    .from('listings')
+    .insert({
+      ...fields,
+      seller_id: user.id,
+      // Keep the money columns consistent with the chosen mechanism so a
+      // fixed-price listing can never carry a stale starting bid.
+      fixed_price: isAuction ? null : fields.fixed_price,
+      starting_bid: isAuction ? fields.starting_bid : null,
+      reserve_price: isAuction ? fields.reserve_price : null,
+      current_highest_bid: null,
+      auction_start: isAuction ? now.toISOString() : null,
+      auction_end: auctionEnd ? auctionEnd.toISOString() : null,
+      status: 'active',
+    })
+    .select('id')
+    .single();
+
+  if (insertErr || !listing) {
+    return NextResponse.json(
+      { error: insertErr?.message ?? 'Could not create the listing' },
+      { status: 400 },
+    );
+  }
+
+  if (images.length > 0) {
+    const { error: imageErr } = await supabase.from('listing_images').insert(
+      images.map((storage_path, index) => ({
+        listing_id: listing.id,
+        storage_path,
+        display_order: index,
+        is_primary: index === 0,
+      })),
+    );
+
+    // The listing exists either way; report the partial failure rather than
+    // letting the curator believe every plate was attached.
+    if (imageErr) {
+      return NextResponse.json(
+        {
+          listing,
+          warning: `Listing created, but its images failed to attach: ${imageErr.message}`,
+        },
+        { status: 207 },
+      );
+    }
+  }
+
+  return NextResponse.json({ listing }, { status: 201 });
 }

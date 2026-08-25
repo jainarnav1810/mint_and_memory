@@ -1,78 +1,104 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { NextResponse, type NextRequest } from 'next/server';
+
+import { evaluateAuctionWinner } from '@/lib/auction-logic';
+import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import type { Bid } from '@/types/bid';
+
+interface ExpiredAuction {
+  id: string;
+  currency: string | null;
+  reserve_price: number | null;
+  bids: Bid[] | null;
+}
 
 export async function GET(request: NextRequest) {
-  // Optional security check for Vercel Cron Header
   const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+
+  // Vercel Cron sends `Bearer $CRON_SECRET`. Without a secret configured this
+  // endpoint would be publicly triggerable, so refuse rather than run open.
+  if (!process.env.CRON_SECRET) {
+    return NextResponse.json({ error: 'CRON_SECRET is not configured' }, { status: 503 });
+  }
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized cron invocation' }, { status: 401 });
   }
 
-  try {
-    const nowIso = new Date().toISOString();
+  const supabase = getSupabaseAdmin();
+  const nowIso = new Date().toISOString();
 
-    // 1. Fetch expired active auctions
-    const { data: expiredAuctions, error: fetchErr } = await supabaseAdmin
-      .from('listings')
-      .select('*, bids(*)')
-      .eq('listing_type', 'auction')
-      .eq('status', 'active')
-      .lte('auction_end', nowIso);
+  const { data: expiredAuctions, error: fetchErr } = await supabase
+    .from('listings')
+    .select('id, currency, reserve_price, bids(id, listing_id, bidder_id, amount, created_at)')
+    .eq('listing_type', 'auction')
+    .eq('status', 'active')
+    .lte('auction_end', nowIso);
 
-    if (fetchErr || !expiredAuctions || expiredAuctions.length === 0) {
-      return NextResponse.json({
-        message: 'Cron executed cleanly: 0 expired auctions found.',
-        processedCount: 0,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    const results = [];
-
-    for (const listing of expiredAuctions) {
-      // Find highest bid
-      const sortedBids = (listing.bids || []).sort((a: any, b: any) => b.amount - a.amount);
-      const winningBid = sortedBids[0];
-      const reserve = listing.reserve_price || 0;
-
-      if (winningBid && winningBid.amount >= reserve) {
-        // Mark listing as closed/sold
-        await supabaseAdmin
-          .from('listings')
-          .update({ status: 'closed' })
-          .eq('id', listing.id);
-
-        // Create pending order for winner
-        await supabaseAdmin.from('orders').insert([
-          {
-            listing_id: listing.id,
-            buyer_id: winningBid.bidder_id,
-            order_type: 'auction',
-            amount: winningBid.amount,
-            currency: listing.currency || 'USD',
-            payment_status: 'pending',
-            order_status: 'processing',
-          },
-        ]);
-
-        results.push({ listingId: listing.id, status: 'WON', winnerBidder: winningBid.bidder_id, amount: winningBid.amount });
-      } else {
-        // Reserve not met or no bids placed
-        await supabaseAdmin
-          .from('listings')
-          .update({ status: 'closed' })
-          .eq('id', listing.id);
-
-        results.push({ listingId: listing.id, status: 'CLOSED_NO_WINNER', reason: winningBid ? 'Reserve not met' : 'No bids' });
-      }
-    }
-
-    return NextResponse.json({
-      message: `Cron completed: ${results.length} auctions processed.`,
-      processedCount: results.length,
-      results,
-    });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Cron job failure' }, { status: 500 });
+  // Don't report a fetch failure as "0 expired auctions" — that hides an outage.
+  if (fetchErr) {
+    return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
+
+  const auctions = (expiredAuctions ?? []) as unknown as ExpiredAuction[];
+
+  if (auctions.length === 0) {
+    return NextResponse.json({
+      message: 'Cron executed cleanly: 0 expired auctions found.',
+      processedCount: 0,
+      timestamp: nowIso,
+    });
+  }
+
+  const results: Record<string, unknown>[] = [];
+
+  for (const listing of auctions) {
+    const highestBid =
+      [...(listing.bids ?? [])].sort((a, b) => Number(b.amount) - Number(a.amount))[0] ?? null;
+    const { winner, reserveMet } = evaluateAuctionWinner(listing, highestBid);
+
+    const { error: closeErr } = await supabase
+      .from('listings')
+      .update({ status: 'closed' })
+      .eq('id', listing.id)
+      // Guard against a second cron run reprocessing the same auction.
+      .eq('status', 'active');
+
+    if (closeErr) {
+      results.push({ listingId: listing.id, status: 'ERROR', reason: closeErr.message });
+      continue;
+    }
+
+    if (!winner) {
+      results.push({
+        listingId: listing.id,
+        status: 'CLOSED_NO_WINNER',
+        reason: highestBid ? 'Reserve not met' : 'No bids',
+      });
+      continue;
+    }
+
+    const { error: orderErr } = await supabase.from('orders').insert({
+      listing_id: listing.id,
+      buyer_id: winner.bidder_id,
+      order_type: 'auction',
+      amount: winner.amount,
+      currency: listing.currency || 'USD',
+      payment_status: 'pending',
+      order_status: 'processing',
+    });
+
+    results.push({
+      listingId: listing.id,
+      status: orderErr ? 'WON_ORDER_FAILED' : 'WON',
+      winnerBidder: winner.bidder_id,
+      amount: winner.amount,
+      reserveMet,
+      ...(orderErr ? { reason: orderErr.message } : {}),
+    });
+  }
+
+  return NextResponse.json({
+    message: `Cron completed: ${results.length} auctions processed.`,
+    processedCount: results.length,
+    results,
+  });
 }

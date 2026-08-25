@@ -1,18 +1,34 @@
 {
-  "name": "workspace",
-  "version": "0.0.0",
-  "license": "MIT",
-  "scripts": {
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
-  },
+  "name": "mint-and-memory",
+  "version": "1.0.0",
   "private": true,
+  "license": "MIT",
+  "description": "Mint & Memory — a curated archive and marketplace for collectible stamps, coins, and paper currency.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
-    "@replit/connectors-sdk": "^0.4.1"
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.112.3",
+    "lucide-react": "^0.545.0",
+    "next": "^15.5.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "prettier": "^3.9.6",
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.14",
     "typescript": "~5.9.3"
   }
 }

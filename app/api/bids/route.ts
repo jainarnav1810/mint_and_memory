@@ -1,75 +1,69 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
-import { bidSchema } from '@/lib/validators';
+import { NextResponse, type NextRequest } from 'next/server';
+
 import { getMinimumNextBid } from '@/lib/auction-logic';
+import { createClient } from '@/lib/supabase/server';
+import { bidSchema, firstIssue } from '@/lib/validators';
 
 export async function POST(request: NextRequest) {
-  try {
-    const json = await request.json();
-    const parsed = bidSchema.safeParse(json);
+  const json = await request.json().catch(() => null);
+  const parsed = bidSchema.safeParse(json);
 
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
-    }
-
-    const { listing_id, amount } = parsed.data;
-
-    // Fetch listing state
-    const { data: listing, error: listingErr } = await supabase
-      .from('listings')
-      .select('*')
-      .eq('id', listing_id)
-      .single();
-
-    if (listingErr || !listing) {
-      // In dev mode without database, accept bid mock response
-      return NextResponse.json({
-        success: true,
-        bid: {
-          id: `bid_${Date.now()}`,
-          listing_id,
-          amount,
-          created_at: new Date().toISOString(),
-        },
-        message: 'Bid placed successfully!',
-        isMock: true,
-      });
-    }
-
-    if (listing.status !== 'active' || listing.listing_type !== 'auction') {
-      return NextResponse.json({ error: 'This listing is not an active auction' }, { status: 400 });
-    }
-
-    if (listing.auction_end && new Date(listing.auction_end).getTime() <= Date.now()) {
-      return NextResponse.json({ error: 'Auction has already ended' }, { status: 400 });
-    }
-
-    const minRequiredBid = getMinimumNextBid(listing);
-    if (amount < minRequiredBid) {
-      return NextResponse.json(
-        { error: `Bid must be at least $${minRequiredBid.toFixed(2)}` },
-        { status: 400 }
-      );
-    }
-
-    // Insert bid
-    const { data: newBid, error: bidErr } = await supabase
-      .from('bids')
-      .insert([
-        {
-          listing_id,
-          amount,
-        },
-      ])
-      .select()
-      .single();
-
-    if (bidErr) {
-      return NextResponse.json({ error: bidErr.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ success: true, bid: newBid });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  if (!parsed.success) {
+    return NextResponse.json({ error: firstIssue(parsed.error) }, { status: 400 });
   }
+
+  const { listing_id, amount } = parsed.data;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Sign in to place a bid' }, { status: 401 });
+  }
+
+  const { data: listing, error: listingErr } = await supabase
+    .from('listings')
+    .select('id, status, listing_type, auction_end, starting_bid, current_highest_bid')
+    .eq('id', listing_id)
+    .maybeSingle();
+
+  // No mock fallback: a missing listing is a 404, not a fake accepted bid.
+  if (listingErr) {
+    return NextResponse.json({ error: listingErr.message }, { status: 500 });
+  }
+  if (!listing) {
+    return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
+  }
+
+  if (listing.status !== 'active' || listing.listing_type !== 'auction') {
+    return NextResponse.json({ error: 'This listing is not an active auction' }, { status: 409 });
+  }
+
+  if (listing.auction_end && new Date(listing.auction_end).getTime() <= Date.now()) {
+    return NextResponse.json({ error: 'This auction has already ended' }, { status: 409 });
+  }
+
+  const minRequiredBid = getMinimumNextBid(listing);
+  if (amount < minRequiredBid) {
+    return NextResponse.json(
+      { error: `Bid must be at least $${minRequiredBid.toFixed(2)}` },
+      { status: 400 },
+    );
+  }
+
+  // place_bid locks the listing row and re-checks the increment, so it is the
+  // authority under concurrent bids; the checks above only give better messages.
+  // It derives the bidder from auth.uid() — the caller cannot bid as someone else.
+  const { data, error } = await supabase.rpc('place_bid', {
+    p_listing_id: listing_id,
+    p_amount: amount,
+  });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 409 });
+  }
+
+  return NextResponse.json({ success: true, bid: data });
 }

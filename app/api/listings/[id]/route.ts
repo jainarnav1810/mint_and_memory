@@ -1,21 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { NextResponse, type NextRequest } from 'next/server';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id;
-  try {
-    const { data, error } = await supabase
-      .from('listings')
-      .select('*, images:listing_images(*), bids(*)')
-      .eq('id', id)
-      .single();
+import { createClient } from '@/lib/supabase/server';
 
-    if (error || !data) {
-      return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
-    }
+// Next.js 15 hands route params in as a Promise.
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
 
-    return NextResponse.json({ listing: data });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+export async function GET(_request: NextRequest, { params }: RouteContext) {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*, images:listing_images(*), bids(id, amount, created_at)')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  if (!data) {
+    return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ listing: data });
 }
