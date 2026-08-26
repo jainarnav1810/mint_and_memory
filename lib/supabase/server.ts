@@ -1,5 +1,14 @@
 import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type SetAllCookies } from '@supabase/ssr';
+
+import { MISSING_PUBLIC_ENV, supabasePublicKey, supabaseUrl } from './env';
+
+/**
+ * `createServerClient` accepts either the modern `getAll`/`setAll` cookie shape
+ * or the deprecated `get`/`set`/`remove` one. Because the option is a union,
+ * TypeScript can't infer the callback parameter contextually, so annotate it.
+ */
+type CookiesToSet = Parameters<SetAllCookies>[0];
 
 /**
  * Server-side Supabase client bound to the request's cookies, so `auth.uid()`
@@ -9,23 +18,21 @@ import { createServerClient } from '@supabase/ssr';
  * bypass RLS (webhooks, cron, role assignment) use `lib/supabase/admin.ts`.
  */
 export async function createClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = supabaseUrl();
+  const publicKey = supabasePublicKey();
 
-  if (!url || !anonKey) {
-    throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Copy .env.example to .env.local and fill them in.',
-    );
+  if (!url || !publicKey) {
+    throw new Error(MISSING_PUBLIC_ENV);
   }
 
   const cookieStore = await cookies();
 
-  return createServerClient(url, anonKey, {
+  return createServerClient(url, publicKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookiesToSet) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options);

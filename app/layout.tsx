@@ -1,9 +1,17 @@
 import React, { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
+import { unstable_rethrow } from 'next/navigation';
 import { SpecimenNavbar } from '@/components/specimen-navbar';
 import { getSessionContext } from '@/lib/supabase/server';
 import './globals.css';
+
+/**
+ * This layout reads the auth cookie on every request, so no route beneath it can
+ * ever be statically generated. Saying so up front stops Next from attempting a
+ * static render pass and then discarding it.
+ */
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Mint & Memory — The Specimen Drawer Archive',
@@ -39,7 +47,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     userEmail = session.user?.email ?? null;
     isAdmin = session.isAdmin;
   } catch (err) {
-    // Supabase not configured yet — render the site anonymously rather than 500.
+    // Next signals control flow (dynamic rendering, redirects, notFound) by
+    // throwing. Swallowing those would fight the framework, so hand them back.
+    unstable_rethrow(err);
+    // A genuine failure — usually Supabase not configured yet. Render the site
+    // anonymously rather than 500 the whole app.
     console.error('[layout] could not resolve session:', err);
   }
 

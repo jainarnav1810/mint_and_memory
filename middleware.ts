@@ -1,5 +1,10 @@
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type SetAllCookies } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+
+import { supabasePublicKey, supabaseUrl } from '@/lib/supabase/env';
+
+/** See lib/supabase/server.ts — the cookies option is a union, so annotate. */
+type CookiesToSet = Parameters<SetAllCookies>[0];
 
 /**
  * Refreshes the Supabase auth cookie on every navigation.
@@ -11,8 +16,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = supabaseUrl();
+  const anonKey = supabasePublicKey();
 
   // Nothing to refresh if Supabase isn't configured yet; let the page render
   // and surface its own configuration error.
@@ -23,7 +28,7 @@ export async function middleware(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));

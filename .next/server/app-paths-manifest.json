@@ -1,0 +1,22 @@
+{
+  "/api/auth/login/route": "app/api/auth/login/route.js",
+  "/api/auth/signup/route": "app/api/auth/signup/route.js",
+  "/api/bids/route": "app/api/bids/route.js",
+  "/api/checkout/razorpay/route": "app/api/checkout/razorpay/route.js",
+  "/api/checkout/route": "app/api/checkout/route.js",
+  "/api/cron/close-auctions/route": "app/api/cron/close-auctions/route.js",
+  "/api/listings/[id]/route": "app/api/listings/[id]/route.js",
+  "/api/listings/route": "app/api/listings/route.js",
+  "/api/webhooks/razorpay/route": "app/api/webhooks/razorpay/route.js",
+  "/api/webhooks/stripe/route": "app/api/webhooks/stripe/route.js",
+  "/auth/signout/route": "app/auth/signout/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/browse/page": "app/browse/page.js",
+  "/item/[id]/page": "app/item/[id]/page.js",
+  "/login/page": "app/login/page.js",
+  "/signup/page": "app/signup/page.js",
+  "/page": "app/page.js",
+  "/checkout/page": "app/checkout/page.js",
+  "/admin/listings/new/page": "app/admin/listings/new/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js"
+}
