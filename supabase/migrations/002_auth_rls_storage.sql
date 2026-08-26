@@ -90,8 +90,12 @@ create unique index if not exists idx_orders_razorpay_order
 -- ---------------------------------------------------------------------------
 
 -- profiles: a row carries an email address, so it is not public.
+-- Each block drops both 001's policy names and its own, so this file can be
+-- re-run after a partial failure. (`create policy` has no `if not exists`.)
 drop policy if exists "Public profile read" on public.profiles;
 drop policy if exists "User self update profile" on public.profiles;
+drop policy if exists "Read own profile" on public.profiles;
+drop policy if exists "Update own profile" on public.profiles;
 
 create policy "Read own profile" on public.profiles
   for select using (auth.uid() = id or public.is_admin());
@@ -113,6 +117,9 @@ grant update (full_name, country, avatar_url, updated_at) on public.profiles to 
 drop policy if exists "Public read listings" on public.listings;
 drop policy if exists "Public insert listings" on public.listings;
 drop policy if exists "Public update listings" on public.listings;
+drop policy if exists "Admin insert listings" on public.listings;
+drop policy if exists "Admin update listings" on public.listings;
+drop policy if exists "Admin delete listings" on public.listings;
 
 create policy "Public read listings" on public.listings
   for select using (true);
@@ -129,6 +136,9 @@ create policy "Admin delete listings" on public.listings
 -- listing_images: same shape as listings.
 drop policy if exists "Public read images" on public.listing_images;
 drop policy if exists "Public insert images" on public.listing_images;
+drop policy if exists "Admin insert images" on public.listing_images;
+drop policy if exists "Admin update images" on public.listing_images;
+drop policy if exists "Admin delete images" on public.listing_images;
 
 create policy "Public read images" on public.listing_images
   for select using (true);
@@ -160,6 +170,9 @@ create policy "Public read bids" on public.bids
 -- orders: contain shipping addresses. Buyer or curator only.
 drop policy if exists "Public read orders" on public.orders;
 drop policy if exists "Public insert orders" on public.orders;
+drop policy if exists "Read own orders" on public.orders;
+drop policy if exists "Create own orders" on public.orders;
+drop policy if exists "Admin update orders" on public.orders;
 
 create policy "Read own orders" on public.orders
   for select using (buyer_id = auth.uid() or public.is_admin());
