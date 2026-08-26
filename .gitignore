@@ -54,7 +54,7 @@ Thumbs.db
 .env.development.local
 .env.test.local
 .env.production.local
-
+.env.local
 # Scratch and temp
 scratch/
 artifacts/*/scratch/
