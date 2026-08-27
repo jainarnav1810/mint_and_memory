@@ -118,11 +118,34 @@ serve no purpose now that the root is the app.)
 The same file registers the auction closer as a cron:
 
 ```json
-{ "path": "/api/cron/close-auctions", "schedule": "*/15 * * * *" }
+{ "path": "/api/cron/close-auctions", "schedule": "0 3 * * *" }
 ```
 
 Vercel sends `Authorization: Bearer $CRON_SECRET` automatically once the variable is
 set on the project.
+
+**Why daily, and why that's not really enough.** Vercel's Hobby plan rejects any cron
+expression that fires more than once a day — a deploy carrying `*/15 * * * *` fails with
+"Hobby accounts are limited to daily cron jobs". Schedules are evaluated in **UTC**, so
+`0 3 * * *` is 08:30 IST. On Hobby the run is triggered somewhere within that hour rather
+than exactly on the minute.
+
+The consequence is that an auction can sit expired for up to ~24 hours before a winner is
+recorded, which is poor for a live auction site. Two ways out:
+
+- Upgrade to Pro and restore `*/15 * * * *`.
+- Keep the daily entry as a backstop and drive the real cadence from an external scheduler
+  (GitHub Actions, cron-job.org) calling the endpoint directly. The route authorises on the
+  bearer token alone, so any caller presenting it works:
+
+  ```
+  curl -H "Authorization: Bearer $CRON_SECRET" https://<your-app>.vercel.app/api/cron/close-auctions
+  ```
+
+  Re-running after a completed run is a no-op: the close is guarded by
+  `.eq('status', 'active')`, so an already-closed auction is skipped. Don't let two runs
+  overlap, though — the guard doesn't check how many rows it matched, so simultaneous runs
+  could both create an order for the same auction. Sequential is safe; concurrent is not.
 
 ## 6. Point Razorpay at the deployment
 
